@@ -12,11 +12,12 @@ const overrides = JSON.parse(localStorage.getItem('i404.web.songs') || '{}');
 let songs = [], selected = null, dev = false, editing = null;
 let ctx = null, analyser = null, mediaSource = null, freq, timeData;
 let capture = false, resumeAudioAfterPause = false, raf = 0;
-let timer = 0, countTimer = 0, resetTimer = 0, transitionTimer = 0;
+let timer = 0, countTimer = 0, resetTimer = 0, transitionTimer = 0, frameWatchdog = 0;
 let session = 0, playbackRequest = 0, pendingMode = 'manual', frameReady = false;
 let started = false, paused = false, score = 0, fuel = 100, deaths = 0;
 let lowFuelAt = null, lowFuelSpeed = 504, emptyAt = null;
-let lastFrame = 0, deathResetPending = false, pointerHeld = false, spaceHeld = false;
+let lastFrame = 0, deathResetPending = false, spaceHeld = false;
+let lastSceneTime = -1, lastSceneProgressAt = 0;
 const levels = [0, 0, 0], peaks = [0, 0, 0], dirs = [0, 0, 0], pulses = [0, 0, 0], previous = [0, 0, 0];
 
 fetch('songs.json').then(response => response.json()).then(data => {
@@ -69,11 +70,11 @@ function clearGameTimers() {
   clearInterval(countTimer);
   clearTimeout(resetTimer);
   clearTimeout(transitionTimer);
-  timer = countTimer = resetTimer = transitionTimer = 0;
+  clearTimeout(frameWatchdog);
+  timer = countTimer = resetTimer = transitionTimer = frameWatchdog = 0;
 }
 
 function releaseInputs() {
-  pointerHeld = false;
   spaceHeld = false;
   applyBoost();
 }
@@ -102,13 +103,16 @@ function attachTrackAudio(song) {
   status('TRACK READY · PLAY SONG');
 }
 
-function loadFrame(mode) {
+function loadFrame(mode, attempt = 0) {
   const id = ++session;
   pendingMode = mode;
   frameReady = false;
   lastFrame = 0;
+  lastSceneTime = -1;
+  lastSceneProgressAt = performance.now();
   releaseInputs();
   clearInterval(timer);
+  clearTimeout(frameWatchdog);
   frame.style.opacity = '0';
   frame.onload = () => {
     if (id !== session || frame.src.endsWith('about:blank')) return;
@@ -118,6 +122,11 @@ function loadFrame(mode) {
     tick();
   };
   frame.src = 'game/sample-index.html?run=' + id + '-' + Date.now();
+  frameWatchdog = setTimeout(() => {
+    if (id !== session || frameReady || gameView.hidden) return;
+    if (attempt < 2) loadFrame(mode, attempt + 1);
+    else $('#gameStatus').textContent = 'Game did not load. Choose another song and try again.';
+  }, 12000);
 }
 
 function choose(song) {
@@ -206,7 +215,7 @@ function initializeGame(withCountdown) {
     countdown();
   } else {
     enginePause(false);
-    $('#gameStatus').textContent = 'LEFT CLICK / SPACE TO ACCELERATE';
+    $('#gameStatus').textContent = 'W & S TO SWITCH LANES. SPACE TO ACCELERATE';
   }
   return true;
 }
@@ -226,8 +235,9 @@ function countdown() {
       display.hidden = true;
       paused = false;
       lastFrame = performance.now();
+      lastSceneProgressAt = lastFrame;
       enginePause(false);
-      $('#gameStatus').textContent = 'LEFT CLICK / SPACE TO ACCELERATE';
+      $('#gameStatus').textContent = 'W & S TO SWITCH LANES. SPACE TO ACCELERATE';
     } else display.textContent = number;
   }, 450);
 }
@@ -250,8 +260,18 @@ function tick() {
   if (gameView.hidden || !selected) return;
   const currentGame = game();
   if (!currentGame || !currentGame.currentScene) { status('LOADING GAME'); return; }
+  const now = performance.now();
+  const sceneTime = get(currentGame.currentScene, 'time', -1);
+  if (sceneTime > lastSceneTime + .001) {
+    lastSceneTime = sceneTime;
+    lastSceneProgressAt = now;
+  }
   if (!frameReady) {
+    // The GameSalad scene exists before its actors finish their startup rules.
+    // Wait for the scene clock so those rules cannot overwrite our run state.
+    if (sceneTime < .08) return;
     frameReady = true;
+    clearTimeout(frameWatchdog);
     hideUI(currentGame);
     frame.style.opacity = '1';
     if (pendingMode === 'manual') $('#listenButton').disabled = false;
@@ -268,9 +288,15 @@ function tick() {
     pendingMode = 'running';
   }
   hideUI(currentGame);
-  const now = performance.now();
   const dt = lastFrame ? Math.min(.25, (now - lastFrame) / 1000) : 0;
   lastFrame = now;
+  if (started && !paused && capture && !document.hidden && now - lastSceneProgressAt > 1800) {
+    resetScene(false);
+    return;
+  }
+  if (started && !paused && pendingMode === 'running' && get(currentGame, 'idGState') === 0) {
+    initializeGame(false);
+  }
   if (capture && !started && audible()) initializeGame(true);
   applyBoost();
   const state = get(currentGame, 'idGState');
@@ -464,6 +490,7 @@ async function pauseGame(value) {
   $('#pauseButtonWrap').hidden = false;
   paused = false;
   lastFrame = performance.now();
+  lastSceneProgressAt = lastFrame;
   enginePause(false);
 }
 
@@ -511,13 +538,25 @@ function restart() {
 }
 
 function applyBoost() {
-  const active = started && !paused && (pointerHeld || spaceHeld) && $('#songEndOverlay').hidden;
+  const active = started && !paused && spaceHeld && $('#songEndOverlay').hidden;
   set(game(), 'idNativeBoost', active ? 1 : 0);
   set(game(), 'idGBoost', active ? 1 : 0);
 }
 
 function onKeyDown(event) {
   if (gameView.hidden || !selected) return;
+  if (event.code === 'KeyW' || event.code === 'KeyS') {
+    if (started && !paused && !event.repeat) {
+      const currentGame = game();
+      if (currentGame && get(currentGame, 'idGState') === 1) {
+        const lane = Math.round(get(currentGame, 'idGLane', 3));
+        set(currentGame, 'idGLane', Math.max(1, Math.min(6, lane + (event.code === 'KeyW' ? 1 : -1))));
+      }
+    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    return;
+  }
   if (event.code === 'Escape') {
     event.preventDefault();
     if (event.repeat) return;
@@ -537,9 +576,6 @@ function onKeyUp(event) {
 function bindFrameControls() {
   try {
     const inner = frame.contentWindow;
-    inner.document.addEventListener('pointerdown', event => { if (event.button === 0) { pointerHeld = true; applyBoost(); } }, true);
-    inner.document.addEventListener('pointerup', () => { pointerHeld = false; applyBoost(); }, true);
-    inner.document.addEventListener('pointercancel', releaseInputs, true);
     inner.addEventListener('blur', releaseInputs);
     inner.addEventListener('keydown', onKeyDown, true);
     inner.addEventListener('keyup', onKeyUp, true);
@@ -593,11 +629,9 @@ $('#saveTrack').onclick = event => {
 };
 window.addEventListener('keydown', onKeyDown);
 window.addEventListener('keyup', onKeyUp);
-document.addEventListener('pointerdown', event => {
-  if (event.button === 0 && event.target.closest('.game-stage') && !event.target.closest('button')) { pointerHeld = true; applyBoost(); }
-});
-document.addEventListener('pointerup', () => { pointerHeld = false; applyBoost(); });
-document.addEventListener('pointercancel', releaseInputs);
 window.addEventListener('blur', releaseInputs);
-document.addEventListener('visibilitychange', () => { if (document.hidden) releaseInputs(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) releaseInputs();
+  else lastSceneProgressAt = performance.now();
+});
 renderSettings();
