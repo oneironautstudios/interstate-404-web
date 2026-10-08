@@ -23,7 +23,7 @@ jobs:
           cat i404-page.part-* > /tmp/i404-site.zip
           mkdir site
           unzip -q /tmp/i404-site.zip -d site
-          cp app.js site/app.js
+          cp app.js index.html styles.css site/
       - uses: actions/configure-pages@v5
         with:
           enablement: true
