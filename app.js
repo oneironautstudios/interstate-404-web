@@ -63,7 +63,6 @@ function stopCapture(resetPosition = false) {
   cancelAnimationFrame(raf);
   audio.pause();
   if (resetPosition) { try { audio.currentTime = 0; } catch {} }
-  $('#listenButton').textContent = 'PLAY SONG';
   status('AUDIO PAUSED');
 }
 
@@ -99,8 +98,6 @@ function attachTrackAudio(song) {
   resetAnalysis();
   audio.src = song.audioPath;
   audio.load();
-  $('#listenButton').disabled = true;
-  $('#listenButton').hidden = true;
   status('TRACK READY');
 }
 
@@ -467,17 +464,12 @@ async function startPreparedSong() {
   if (id !== session || request !== playbackRequest || !selected) return;
   pendingStart = null;
   if (!ready || audio.paused) {
-    $('#listenButton').hidden = false;
-    $('#listenButton').disabled = false;
-    status('PRESS PLAY SONG TO START AUDIO');
+    await playSong();
     return;
   }
   try { audio.currentTime = 0; } catch {}
   audio.volume = 1;
   capture = true;
-  $('#listenButton').textContent = 'PAUSE SONG';
-  $('#listenButton').hidden = false;
-  $('#listenButton').disabled = false;
   status('WAITING FOR MUSIC SIGNAL');
   cancelAnimationFrame(raf);
   analyze();
@@ -496,9 +488,6 @@ async function playSong() {
     await audio.play();
     if (id !== session || request !== playbackRequest) return false;
     capture = true;
-    $('#listenButton').textContent = 'PAUSE SONG';
-    $('#listenButton').hidden = false;
-    $('#listenButton').disabled = false;
     status('WAITING FOR MUSIC SIGNAL');
     cancelAnimationFrame(raf);
     analyze();
@@ -558,8 +547,6 @@ function backToLibrary() {
   cleanGameView();
   gameView.hidden = true;
   library.hidden = false;
-  $('#listenButton').disabled = true;
-  $('#listenButton').hidden = true;
   status('AUDIO NOT CONNECTED');
 }
 
@@ -570,8 +557,6 @@ function restart() {
   stopCapture(true);
   resetAnalysis();
   cleanGameView();
-  $('#listenButton').disabled = true;
-  $('#listenButton').hidden = true;
   started = false;
   paused = false;
   score = 0;
@@ -647,12 +632,6 @@ document.querySelectorAll('[data-setting]').forEach(input => input.addEventListe
   renderSettings();
 }));
 
-$('#listenButton').onclick = () => {
-  if (started && paused) pauseGame(false);
-  else if (capture && started) pauseGame(true);
-  else if (capture) stopCapture();
-  else playSong();
-};
 audio.addEventListener('ended', () => { if (capture) finishSong(); });
 audio.addEventListener('error', () => { if (selected) status('AUDIO FILE COULD NOT BE DECODED · TRY MP3, M4A OR WAV'); });
 $('#pauseButton').onclick = () => pauseGame(true);

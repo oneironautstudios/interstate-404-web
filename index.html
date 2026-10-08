@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#e8faff">
   <title>Interstate 404 — Play in Browser</title>
-  <link rel="stylesheet" href="styles.css?v=2026-10-08-autoplay">
+  <link rel="stylesheet" href="styles.css?v=2026-10-08-game-pause">
 </head>
 <body>
   <audio id="songAudio" preload="metadata"></audio>
@@ -27,9 +27,6 @@
       <div class="game-toolbar">
         <button id="backButton" class="soft-button" type="button">CHANGE SONG</button>
         <div class="selected-track"><strong id="selectedTitle">—</strong><span id="selectedArtist">—</span></div>
-        <div class="toolbar-actions">
-          <button id="listenButton" class="primary-button" type="button" hidden disabled>PLAY SONG</button>
-        </div>
       </div>
       <div class="game-shell">
         <div class="game-stage">
@@ -68,6 +65,6 @@
     <form method="dialog" id="devForm"><h2>DEVELOPER MODE</h2><p>Enter the developer password to edit song titles and artists in this browser.</p><input id="devPassword" type="password" autocomplete="current-password" placeholder="Password"><div class="dialog-actions"><button class="soft-button" value="cancel">CANCEL</button><button id="devSubmit" class="primary-button" value="default">UNLOCK</button></div><p id="devError" class="error" hidden>Incorrect password.</p></form>
   </dialog>
   <dialog id="editDialog" class="dev-dialog edit-dialog"><form method="dialog" id="editForm"><h2>EDIT TRACK</h2><label>SONG TITLE<input id="editTitle"></label><label>ARTIST<input id="editArtist"></label><p class="local-audio-note">The song audio and matching album cover are bundled with this web version.</p><div class="dialog-actions"><button class="soft-button" value="cancel">CANCEL</button><button id="saveTrack" class="primary-button" value="default">SAVE</button></div></form></dialog>
-  <script src="app.js?v=2026-10-08-autoplay" defer></script>
+  <script src="app.js?v=2026-10-08-game-pause" defer></script>
 </body>
 </html>
