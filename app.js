@@ -12,6 +12,7 @@ const overrides = JSON.parse(localStorage.getItem('i404.web.songs') || '{}');
 let songs = [], selected = null, dev = false, editing = null;
 let ctx = null, analyser = null, mediaSource = null, freq, timeData;
 let capture = false, resumeAudioAfterPause = false, raf = 0;
+let pendingStart = null;
 let timer = 0, countTimer = 0, resetTimer = 0, transitionTimer = 0, frameWatchdog = 0;
 let session = 0, playbackRequest = 0, pendingMode = 'manual', frameReady = false;
 let started = false, paused = false, score = 0, fuel = 100, deaths = 0;
@@ -57,6 +58,7 @@ function resetAnalysis() {
 
 function stopCapture(resetPosition = false) {
   playbackRequest++;
+  pendingStart = null;
   capture = false;
   cancelAnimationFrame(raf);
   audio.pause();
@@ -98,9 +100,8 @@ function attachTrackAudio(song) {
   audio.src = song.audioPath;
   audio.load();
   $('#listenButton').disabled = true;
-  $('#captureHelp').textContent = 'Playing ' + song.title + ' inside this page.';
-  $('#gameStatus').textContent = 'Press PLAY SONG to start the track and game.';
-  status('TRACK READY · PLAY SONG');
+  $('#listenButton').hidden = true;
+  status('TRACK READY');
 }
 
 function loadFrame(mode, attempt = 0) {
@@ -150,6 +151,7 @@ function choose(song) {
   $('#gameStatus').textContent = 'Loading track…';
   attachTrackAudio(song);
   loadFrame('manual');
+  primeSong();
 }
 
 function game() {
@@ -274,13 +276,8 @@ function tick() {
     clearTimeout(frameWatchdog);
     hideUI(currentGame);
     frame.style.opacity = '1';
-    if (pendingMode === 'manual') $('#listenButton').disabled = false;
-    if (pendingMode === 'replay') revealTransition(() => {
-      if (selected && !capture) {
-        $('#listenButton').disabled = false;
-        playSong();
-      }
-    });
+    if (pendingMode === 'manual') startSongAfterPaint();
+    if (pendingMode === 'replay') revealTransition(startSongAfterPaint);
     else if (pendingMode === 'continue') {
       initializeGame(false);
       revealTransition();
@@ -428,30 +425,80 @@ function analyze() {
   raf = requestAnimationFrame(analyze);
 }
 
+function ensureAudioGraph() {
+  if (ctx) return;
+  ctx = new AudioContext();
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0;
+  freq = new Float32Array(analyser.frequencyBinCount);
+  timeData = new Float32Array(analyser.fftSize);
+  mediaSource = ctx.createMediaElementSource(audio);
+  mediaSource.connect(analyser);
+  analyser.connect(ctx.destination);
+}
+
+function primeSong() {
+  if (!selected || !audio.getAttribute('src')) return;
+  // This runs in the album/replay click. Keep the track silent while the game loads;
+  // browsers permit the later reveal because playback began with user activation.
+  try {
+    ensureAudioGraph();
+    audio.volume = 0;
+    const resumed = ctx.resume();
+    const playing = audio.play();
+    pendingStart = Promise.all([resumed, playing]).then(() => true).catch(() => false);
+  } catch {
+    pendingStart = Promise.resolve(false);
+  }
+}
+
+function startSongAfterPaint() {
+  const id = session;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (id === session && selected && !gameView.hidden) startPreparedSong();
+  }));
+}
+
+async function startPreparedSong() {
+  const id = session;
+  const request = playbackRequest;
+  const ready = pendingStart && await pendingStart;
+  if (id !== session || request !== playbackRequest || !selected) return;
+  pendingStart = null;
+  if (!ready || audio.paused) {
+    $('#listenButton').hidden = false;
+    $('#listenButton').disabled = false;
+    status('PRESS PLAY SONG TO START AUDIO');
+    return;
+  }
+  try { audio.currentTime = 0; } catch {}
+  audio.volume = 1;
+  capture = true;
+  $('#listenButton').textContent = 'PAUSE SONG';
+  $('#listenButton').hidden = false;
+  $('#listenButton').disabled = false;
+  status('WAITING FOR MUSIC SIGNAL');
+  cancelAnimationFrame(raf);
+  analyze();
+}
+
 async function playSong() {
   if (!selected || !audio.getAttribute('src')) { status('TRACK AUDIO IS NOT AVAILABLE'); return false; }
   const id = session;
   const request = ++playbackRequest;
   try {
-    if (!ctx) {
-      ctx = new AudioContext();
-      analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
-      analyser.smoothingTimeConstant = 0;
-      freq = new Float32Array(analyser.frequencyBinCount);
-      timeData = new Float32Array(analyser.fftSize);
-      mediaSource = ctx.createMediaElementSource(audio);
-      mediaSource.connect(analyser);
-      analyser.connect(ctx.destination);
-    }
+    ensureAudioGraph();
     await ctx.resume();
     if (id !== session || request !== playbackRequest) return false;
     if (audio.ended) audio.currentTime = 0;
+    audio.volume = 1;
     await audio.play();
     if (id !== session || request !== playbackRequest) return false;
     capture = true;
     $('#listenButton').textContent = 'PAUSE SONG';
-    $('#captureHelp').textContent = 'Playing ' + selected.title + ' inside this page.';
+    $('#listenButton').hidden = false;
+    $('#listenButton').disabled = false;
     status('WAITING FOR MUSIC SIGNAL');
     cancelAnimationFrame(raf);
     analyze();
@@ -512,6 +559,7 @@ function backToLibrary() {
   gameView.hidden = true;
   library.hidden = false;
   $('#listenButton').disabled = true;
+  $('#listenButton').hidden = true;
   status('AUDIO NOT CONNECTED');
 }
 
@@ -523,6 +571,7 @@ function restart() {
   resetAnalysis();
   cleanGameView();
   $('#listenButton').disabled = true;
+  $('#listenButton').hidden = true;
   started = false;
   paused = false;
   score = 0;
@@ -535,6 +584,7 @@ function restart() {
   layer.hidden = false;
   $('#gameStatus').textContent = 'Loading game…';
   loadFrame('replay');
+  primeSong();
 }
 
 function applyBoost() {

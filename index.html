@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#e8faff">
   <title>Interstate 404 — Play in Browser</title>
-  <link rel="stylesheet" href="styles.css?v=2026-10-08-controls">
+  <link rel="stylesheet" href="styles.css?v=2026-10-08-autoplay">
 </head>
 <body>
   <audio id="songAudio" preload="metadata"></audio>
@@ -25,10 +25,10 @@
 
     <section id="gameView" class="view game-view" hidden>
       <div class="game-toolbar">
-        <button id="backButton" class="soft-button" type="button">‹ LIBRARY</button>
+        <button id="backButton" class="soft-button" type="button">CHANGE SONG</button>
         <div class="selected-track"><strong id="selectedTitle">—</strong><span id="selectedArtist">—</span></div>
         <div class="toolbar-actions">
-          <button id="listenButton" class="primary-button" type="button" disabled>PLAY SONG</button>
+          <button id="listenButton" class="primary-button" type="button" hidden disabled>PLAY SONG</button>
         </div>
       </div>
       <div class="game-shell">
@@ -38,10 +38,10 @@
           <div id="scoreHud" class="score-hud" hidden>000000</div>
           <div id="pauseButtonWrap" class="pause-wrap" hidden><button id="pauseButton" class="pause-button" aria-label="Pause game"><span class="pause-bars" aria-hidden="true"><i></i><i></i></span></button></div>
           <div id="countdown" class="countdown" hidden>3</div>
-          <div id="gameStatus" class="game-status">Choose a track to begin.</div>
+          <div id="gameStatus" class="game-status" hidden></div>
           <div id="whiteTransition" class="white-transition" hidden></div>
           <div id="pauseOverlay" class="screen-overlay" hidden>
-            <div class="dialog-panel"><h2>PAUSED</h2><button id="resumeButton" class="primary-button" type="button">RESUME</button><button id="settingsButton" class="soft-button" type="button">SETTINGS</button><button id="restartButton" class="soft-button" type="button">RESTART SONG</button><button id="libraryButton" class="text-button" type="button">SONG LIBRARY</button></div>
+            <div class="dialog-panel"><h2>PAUSED</h2><button id="resumeButton" class="primary-button" type="button">RESUME</button><button id="settingsButton" class="soft-button" type="button">SETTINGS</button><button id="restartButton" class="soft-button" type="button">RESTART SONG</button><button id="libraryButton" class="soft-button" type="button">CHANGE SONG</button></div>
           </div>
           <div id="settingsOverlay" class="screen-overlay" hidden>
             <div class="dialog-panel settings-panel"><h2>SETTINGS</h2>
@@ -60,7 +60,6 @@
           <div id="outOfFuelOverlay" class="screen-overlay blackout" hidden><div class="fuel-message">OUT OF FUEL</div></div>
           <div id="songEndOverlay" class="screen-overlay" hidden><div class="dialog-panel"><h2>YOU FINISHED THE SONG!</h2><p id="finalScore">SCORE 000000</p><button id="replayButton" class="primary-button" type="button">REPLAY SONG</button><button id="anotherSongButton" class="soft-button" type="button">PLAY ANOTHER SONG</button></div></div>
         </div>
-        <div class="game-footer"><span id="captureHelp">The selected song plays inside this page.</span><span>W &amp; S TO SWITCH LANES. SPACE TO ACCELERATE</span></div>
       </div>
     </section>
   </main>
@@ -69,6 +68,6 @@
     <form method="dialog" id="devForm"><h2>DEVELOPER MODE</h2><p>Enter the developer password to edit song titles and artists in this browser.</p><input id="devPassword" type="password" autocomplete="current-password" placeholder="Password"><div class="dialog-actions"><button class="soft-button" value="cancel">CANCEL</button><button id="devSubmit" class="primary-button" value="default">UNLOCK</button></div><p id="devError" class="error" hidden>Incorrect password.</p></form>
   </dialog>
   <dialog id="editDialog" class="dev-dialog edit-dialog"><form method="dialog" id="editForm"><h2>EDIT TRACK</h2><label>SONG TITLE<input id="editTitle"></label><label>ARTIST<input id="editArtist"></label><p class="local-audio-note">The song audio and matching album cover are bundled with this web version.</p><div class="dialog-actions"><button class="soft-button" value="cancel">CANCEL</button><button id="saveTrack" class="primary-button" value="default">SAVE</button></div></form></dialog>
-  <script src="app.js?v=2026-10-08-controls" defer></script>
+  <script src="app.js?v=2026-10-08-autoplay" defer></script>
 </body>
 </html>
